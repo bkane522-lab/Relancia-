@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Relancia — Relances de factures automatiques</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#12866f">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --paper: #faf9f5;
+    --paper-dim: #f0efe8;
+    --ink: #1b1d1a;
+    --ink-soft: #5b5c56;
+    --line: #ddd9cc;
+    --teal: #12866f;
+    --teal-dark: #0b5c4c;
+    --rust: #b5502e;
+    --rust-soft: #f2e3da;
+    --amber: #c98a1a;
+    --amber-soft: #f5ecd8;
+    --ok-soft: #e2ede4;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .serif {
+    font-family: 'Source Serif 4', Georgia, serif;
+  }
+
+  header {
+    padding: 28px 20px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .brand .mark {
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    background: var(--teal);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 15px;
+    font-family: 'Source Serif 4', serif;
+    flex-shrink: 0;
+  }
+
+  .brand h1 { font-size: 22px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  .tagline { color: var(--ink-soft); font-size: 13.5px; margin: 4px 0 0 40px; }
+
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 20px 20px 100px;
+  }
+
+  .summary-row {
+    display: flex;
+    gap: 10px;
+    margin: 18px 0 24px;
+  }
+
+  .summary-card {
+    flex: 1;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 14px;
+  }
+
+  .summary-card .num { font-family: 'Source Serif 4', serif; font-size: 26px; font-weight: 600; line-height: 1; }
+  .summary-card .label { font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
+  .summary-card.late .num { color: var(--rust); }
+
+  .section-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin: 28px 0 12px;
+    font-weight: 600;
+  }
+
+  .invoice-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .invoice-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .invoice-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .invoice-client { font-weight: 600; font-size: 15.5px; }
+  .invoice-desc { color: var(--ink-soft); font-size: 13px; margin-top: 2px; }
+  .invoice-amount { font-family: 'Source Serif 4', serif; font-size: 18px; font-weight: 600; white-space: nowrap; }
+
+  .invoice-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-weight: 600;
+  }
+  .chip.late { background: var(--rust-soft); color: var(--rust); }
+  .chip.warn { background: var(--amber-soft); color: var(--amber); }
+  .chip.ok { background: var(--ok-soft); color: var(--teal-dark); }
+  .chip.count { background: var(--paper-dim); color: var(--ink-soft); }
+
+  .invoice-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  button {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 13.5px;
+    border: none;
+    border-radius: 9px;
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  button:active { opacity: 0.7; }
+
+  .btn-primary { background: var(--ink); color: white; }
+  .btn-secondary { background: var(--paper-dim); color: var(--ink); }
+  .btn-ghost { background: transparent; color: var(--ink-soft); padding: 9px 8px; }
+
+  .empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--ink-soft);
+  }
+  .empty-state .serif { font-size: 18px; color: var(--ink); margin-bottom: 6px; }
+
+  .fab {
+    position: fixed;
+    bottom: 24px;
+    right: 20px;
+    width: 58px; height: 58px;
+    border-radius: 18px;
+    background: var(--teal);
+    color: white;
+    font-size: 28px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(18,134,111,0.35);
+    z-index: 20;
+  }
+
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(27,29,26,0.45);
+    display: none;
+    align-items: flex-end;
+    z-index: 30;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--paper);
+    width: 100%;
+    border-radius: 20px 20px 0 0;
+    padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+
+  .modal h2 { font-size: 19px; margin: 0 0 18px; }
+
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+  }
+  .field input, .field textarea {
+    width: 100%;
+    padding: 12px 13px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    background: white;
+    color: var(--ink);
+  }
+  .field textarea { resize: none; min-height: 60px; }
+  .field input:focus, .field textarea:focus {
+    outline: 2px solid var(--teal);
+    outline-offset: -1px;
+  }
+
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .modal-actions button { flex: 1; padding: 13px; font-size: 14.5px; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--ink);
+    color: white;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    z-index: 50;
+    transition: transform 0.25s ease;
+    max-width: 90%;
+    text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .loading-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1s infinite ease-in-out;
+  }
+  @keyframes pulse { 0%,100% { opacity: 0.3 } 50% { opacity: 1 } }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark">R</div>
+    <h1>Relancia</h1>
+  </div>
+  <p class="tagline">Vos relances de factures, envoyées sans que vous y pensiez.</p>
+</header>
+
+<main>
+  <div class="summary-row" id="summaryRow"></div>
+
+  <div class="section-title">Factures en cours</div>
+  <div class="invoice-list" id="invoiceList">
+    <div class="empty-state">
+      <div class="serif">Chargement…</div>
+    </div>
+  </div>
+</main>
+
+<div class="fab" id="openAddBtn" role="button" aria-label="Ajouter une facture">+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2>Nouvelle facture</h2>
+    <form id="invoiceForm">
+      <div class="field">
+        <label for="clientName">Client</label>
+        <input type="text" id="clientName" required placeholder="Ex : Boutique Fleurs d'Avril">
+      </div>
+      <div class="field">
+        <label for="clientEmail">Email du client</label>
+        <input type="email" id="clientEmail" required placeholder="client@exemple.fr">
+      </div>
+      <div class="field">
+        <label for="amount">Montant (€)</label>
+        <input type="number" id="amount" step="0.01" min="0" required placeholder="450.00">
+      </div>
+      <div class="field">
+        <label for="dueDate">Date d'échéance</label>
+        <input type="date" id="dueDate" required>
+      </div>
+      <div class="field">
+        <label for="description">Description (optionnel)</label>
+        <textarea id="description" placeholder="Ex : Bouquet mariage 12 juin"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="cancelBtn">Annuler</button>
+        <button type="submit" class="btn-primary" id="submitBtn">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const invoiceList = document.getElementById('invoiceList');
+  const summaryRow = document.getElementById('summaryRow');
+  const modalOverlay = document.getElementById('modalOverlay');
+  const openAddBtn = document.getElementById('openAddBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const invoiceForm = document.getElementById('invoiceForm');
+  const submitBtn = document.getElementById('submitBtn');
+  const toast = document.getElementById('toast');
+
+  let invoices = [];
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
+  function daysLate(dueDate) {
+    const today = new Date().toISOString().split('T')[0];
+    if (dueDate >= today) return 0;
+    const diff = Math.floor((new Date(today) - new Date(dueDate)) / 86400000);
+    return diff;
+  }
+
+  function renderSummary() {
+    const unpaid = invoices.filter(i => i.status !== 'payee');
+    const late = unpaid.filter(i => daysLate(i.dueDate) > 0);
+    const totalDue = unpaid.reduce((s, i) => s + i.amount, 0);
+
+    summaryRow.innerHTML = `
+      <div class="summary-card late">
+        <div class="num">${late.length}</div>
+        <div class="label">En retard</div>
+      </div>
+      <div class="summary-card">
+        <div class="num">${unpaid.length}</div>
+        <div class="label">En attente</div>
+      </div>
+      <div class="summary-card">
+        <div class="num">${totalDue.toLocaleString('fr-FR', {maximumFractionDigits: 0})} €</div>
+        <div class="label">À encaisser</div>
+      </div>
+    `;
+  }
+
+  function renderInvoices() {
+    if (invoices.length === 0) {
+      invoiceList.innerHTML = `
+        <div class="empty-state">
+          <div class="serif">Aucune facture pour l'instant</div>
+          <div>Ajoutez votre première facture avec le bouton +</div>
+        </div>`;
+      return;
+    }
+
+    invoiceList.innerHTML = invoices.map(inv => {
+      const late = daysLate(inv.dueDate);
+      let chip;
+      if (inv.status === 'payee') {
+        chip = `<span class="chip ok">Payée</span>`;
+      } else if (late > 0) {
+        chip = `<span class="chip late">${late} j de retard</span>`;
+      } else {
+        chip = `<span class="chip warn">Échéance ${inv.dueDate}</span>`;
+      }
+      const countChip = inv.reminderCount > 0
+        ? `<span class="chip count">${inv.reminderCount} relance${inv.reminderCount > 1 ? 's' : ''}</span>`
+        : '';
+
+      return `
+        <div class="invoice-card" data-id="${inv.id}">
+          <div class="invoice-top">
+            <div>
+              <div class="invoice-client">${escapeHtml(inv.clientName)}</div>
+              ${inv.description ? `<div class="invoice-desc">${escapeHtml(inv.description)}</div>` : ''}
+            </div>
+            <div class="invoice-amount">${inv.amount.toLocaleString('fr-FR', {minimumFractionDigits: 2})} €</div>
+          </div>
+          <div class="invoice-meta">${chip}${countChip}</div>
+          ${inv.status !== 'payee' ? `
+          <div class="invoice-actions">
+            <button class="btn-secondary btn-remind" data-id="${inv.id}">Relancer maintenant</button>
+            <button class="btn-secondary btn-paid" data-id="${inv.id}">Marquer payée</button>
+            <button class="btn-ghost btn-delete" data-id="${inv.id}" aria-label="Supprimer">✕</button>
+          </div>` : `
+          <div class="invoice-actions">
+            <button class="btn-ghost btn-delete" data-id="${inv.id}" aria-label="Supprimer">Supprimer</button>
+          </div>`}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  async function loadInvoices() {
+    try {
+      const res = await fetch('/api/list-invoices');
+      const data = await res.json();
+      invoices = data.invoices || [];
+      renderSummary();
+      renderInvoices();
+    } catch (err) {
+      invoiceList.innerHTML = `<div class="empty-state">Impossible de charger les factures. Vérifiez votre connexion.</div>`;
+    }
+  }
+
+  openAddBtn.addEventListener('click', () => modalOverlay.classList.add('open'));
+  cancelBtn.addEventListener('click', () => modalOverlay.classList.remove('open'));
+  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.classList.remove('open'); });
+
+  invoiceForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Enregistrement…';
+
+    const payload = {
+      clientName: document.getElementById('clientName').value,
+      clientEmail: document.getElementById('clientEmail').value,
+      amount: document.getElementById('amount').value,
+      dueDate: document.getElementById('dueDate').value,
+      description: document.getElementById('description').value
+    };
+
+    try {
+      const res = await fetch('/api/add-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur');
+
+      invoiceForm.reset();
+      modalOverlay.classList.remove('open');
+      showToast('Facture ajoutée');
+      loadInvoices();
+    } catch (err) {
+      showToast('Erreur : ' + err.message);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Enregistrer';
+    }
+  });
+
+  invoiceList.addEventListener('click', async (e) => {
+    const id = e.target.dataset.id;
+    if (!id) return;
+
+    if (e.target.classList.contains('btn-paid')) {
+      e.target.textContent = '…';
+      await fetch('/api/update-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'mark-paid' })
+      });
+      showToast('Facture marquée payée');
+      loadInvoices();
+    }
+
+    if (e.target.classList.contains('btn-delete')) {
+      if (!confirm('Supprimer cette facture ?')) return;
+      await fetch('/api/update-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action: 'delete' })
+      });
+      showToast('Facture supprimée');
+      loadInvoices();
+    }
+
+    if (e.target.classList.contains('btn-remind')) {
+      e.target.textContent = 'Envoi…';
+      e.target.disabled = true;
+      try {
+        const res = await fetch('/api/send-reminder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erreur');
+        showToast('Relance envoyée');
+        loadInvoices();
+      } catch (err) {
+        showToast('Erreur : ' + err.message);
+        e.target.textContent = 'Relancer maintenant';
+        e.target.disabled = false;
+      }
+    }
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
+
+  loadInvoices();
+</script>
+
+</body>
+</html>

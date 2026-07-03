@@ -1,0 +1,9 @@
+{
+  "name": "relancia",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@vercel/kv": "^1.0.1",
+    "resend": "^3.4.0"
+  }
+}
