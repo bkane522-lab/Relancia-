@@ -201,6 +201,20 @@
 
   .modal h2 { font-size: 19px; margin: 0 0 18px; }
 
+  .form-error {
+    display: none;
+    background: var(--rust-soft);
+    color: var(--rust);
+    border: 1px solid #e6b8a6;
+    border-radius: 10px;
+    padding: 11px 13px;
+    font-size: 13.5px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    line-height: 1.35;
+  }
+  .form-error.show { display: block; }
+
   .field { margin-bottom: 14px; }
   .field label {
     display: block;
@@ -223,6 +237,12 @@
   .field input:focus, .field textarea:focus {
     outline: 2px solid var(--teal);
     outline-offset: -1px;
+  }
+  .field input.invalid, .field textarea.invalid {
+    border-color: var(--rust);
+  }
+  .field input.invalid:focus, .field textarea.invalid:focus {
+    outline-color: var(--rust);
   }
 
   .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
@@ -284,7 +304,8 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h2>Nouvelle facture</h2>
-    <form id="invoiceForm">
+    <div class="form-error" id="formError" role="alert"></div>
+    <form id="invoiceForm" novalidate>
       <div class="field">
         <label for="clientName">Client</label>
         <input type="text" id="clientName" required placeholder="Ex : Boutique Fleurs d'Avril">
@@ -295,7 +316,7 @@
       </div>
       <div class="field">
         <label for="amount">Montant (€)</label>
-        <input type="number" id="amount" step="0.01" min="0" required placeholder="450.00">
+        <input type="number" id="amount" step="0.01" min="0" required placeholder="450.00" inputmode="decimal">
       </div>
       <div class="field">
         <label for="dueDate">Date d'échéance</label>
@@ -319,13 +340,23 @@
   const invoiceList = document.getElementById('invoiceList');
   const summaryRow = document.getElementById('summaryRow');
   const modalOverlay = document.getElementById('modalOverlay');
+  const modalEl = modalOverlay.querySelector('.modal');
   const openAddBtn = document.getElementById('openAddBtn');
   const cancelBtn = document.getElementById('cancelBtn');
   const invoiceForm = document.getElementById('invoiceForm');
   const submitBtn = document.getElementById('submitBtn');
+  const formError = document.getElementById('formError');
   const toast = document.getElementById('toast');
 
   let invoices = [];
+
+  // Champs obligatoires + règle de validation. Le libellé sert au message d'erreur.
+  const requiredFields = [
+    { id: 'clientName',  label: 'Client',          test: v => v.trim().length > 0 },
+    { id: 'clientEmail', label: 'Email du client', test: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) },
+    { id: 'amount',      label: 'Montant',         test: v => { const n = parseFloat(String(v).replace(',', '.')); return !isNaN(n) && n > 0; } },
+    { id: 'dueDate',     label: "Date d'échéance", test: v => v.trim().length > 0 }
+  ];
 
   function showToast(msg) {
     toast.textContent = msg;
@@ -333,17 +364,34 @@
     setTimeout(() => toast.classList.remove('show'), 3000);
   }
 
+  function clearFormErrors() {
+    formError.classList.remove('show');
+    formError.textContent = '';
+    requiredFields.forEach(f => document.getElementById(f.id).classList.remove('invalid'));
+  }
+
+  function openModal() {
+    clearFormErrors();
+    modalOverlay.classList.add('open');
+  }
+
+  function closeModal() {
+    modalOverlay.classList.remove('open');
+    clearFormErrors();
+  }
+
   function daysLate(dueDate) {
+    if (!dueDate) return 0;
     const today = new Date().toISOString().split('T')[0];
     if (dueDate >= today) return 0;
     const diff = Math.floor((new Date(today) - new Date(dueDate)) / 86400000);
-    return diff;
+    return isNaN(diff) ? 0 : diff;
   }
 
   function renderSummary() {
     const unpaid = invoices.filter(i => i.status !== 'payee');
     const late = unpaid.filter(i => daysLate(i.dueDate) > 0);
-    const totalDue = unpaid.reduce((s, i) => s + i.amount, 0);
+    const totalDue = unpaid.reduce((s, i) => s + (Number(i.amount) || 0), 0);
 
     summaryRow.innerHTML = `
       <div class="summary-card late">
@@ -372,6 +420,7 @@
     }
 
     invoiceList.innerHTML = invoices.map(inv => {
+      const amt = Number(inv.amount) || 0;
       const late = daysLate(inv.dueDate);
       let chip;
       if (inv.status === 'payee') {
@@ -379,20 +428,21 @@
       } else if (late > 0) {
         chip = `<span class="chip late">${late} j de retard</span>`;
       } else {
-        chip = `<span class="chip warn">Échéance ${inv.dueDate}</span>`;
+        chip = `<span class="chip warn">Échéance ${inv.dueDate || '—'}</span>`;
       }
-      const countChip = inv.reminderCount > 0
-        ? `<span class="chip count">${inv.reminderCount} relance${inv.reminderCount > 1 ? 's' : ''}</span>`
+      const rc = Number(inv.reminderCount) || 0;
+      const countChip = rc > 0
+        ? `<span class="chip count">${rc} relance${rc > 1 ? 's' : ''}</span>`
         : '';
 
       return `
         <div class="invoice-card" data-id="${inv.id}">
           <div class="invoice-top">
             <div>
-              <div class="invoice-client">${escapeHtml(inv.clientName)}</div>
+              <div class="invoice-client">${escapeHtml(inv.clientName || 'Client')}</div>
               ${inv.description ? `<div class="invoice-desc">${escapeHtml(inv.description)}</div>` : ''}
             </div>
-            <div class="invoice-amount">${inv.amount.toLocaleString('fr-FR', {minimumFractionDigits: 2})} €</div>
+            <div class="invoice-amount">${amt.toLocaleString('fr-FR', {minimumFractionDigits: 2})} €</div>
           </div>
           <div class="invoice-meta">${chip}${countChip}</div>
           ${inv.status !== 'payee' ? `
@@ -411,7 +461,7 @@
 
   function escapeHtml(str) {
     const div = document.createElement('div');
-    div.textContent = str;
+    div.textContent = str == null ? '' : String(str);
     return div.innerHTML;
   }
 
@@ -419,7 +469,7 @@
     try {
       const res = await fetch('/api/list-invoices');
       const data = await res.json();
-      invoices = data.invoices || [];
+      invoices = Array.isArray(data.invoices) ? data.invoices : [];
       renderSummary();
       renderInvoices();
     } catch (err) {
@@ -427,21 +477,41 @@
     }
   }
 
-  openAddBtn.addEventListener('click', () => modalOverlay.classList.add('open'));
-  cancelBtn.addEventListener('click', () => modalOverlay.classList.remove('open'));
-  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) modalOverlay.classList.remove('open'); });
+  openAddBtn.addEventListener('click', openModal);
+  cancelBtn.addEventListener('click', closeModal);
+  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 
   invoiceForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // Validation visible : on liste les champs manquants au lieu de laisser le navigateur bloquer en silence.
+    clearFormErrors();
+    const missing = [];
+    requiredFields.forEach(f => {
+      const el = document.getElementById(f.id);
+      if (!f.test(el.value)) {
+        missing.push(f.label);
+        el.classList.add('invalid');
+      }
+    });
+    if (missing.length) {
+      formError.textContent = missing.length === 1
+        ? `Merci de compléter : ${missing[0]}.`
+        : `Merci de compléter : ${missing.join(', ')}.`;
+      formError.classList.add('show');
+      modalEl.scrollTop = 0;
+      return;
+    }
+
     submitBtn.disabled = true;
     submitBtn.textContent = 'Enregistrement…';
 
     const payload = {
-      clientName: document.getElementById('clientName').value,
-      clientEmail: document.getElementById('clientEmail').value,
-      amount: document.getElementById('amount').value,
+      clientName: document.getElementById('clientName').value.trim(),
+      clientEmail: document.getElementById('clientEmail').value.trim(),
+      amount: parseFloat(String(document.getElementById('amount').value).replace(',', '.')),
       dueDate: document.getElementById('dueDate').value,
-      description: document.getElementById('description').value
+      description: document.getElementById('description').value.trim()
     };
 
     try {
@@ -454,7 +524,7 @@
       if (!res.ok) throw new Error(data.error || 'Erreur');
 
       invoiceForm.reset();
-      modalOverlay.classList.remove('open');
+      closeModal();
       showToast('Facture ajoutée');
       loadInvoices();
     } catch (err) {
